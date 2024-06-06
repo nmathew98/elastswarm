@@ -35,39 +35,6 @@ secrets:
     file: ./keys/privkey.pem
 
 services:
-  # proxy:
-  #   image: alpine
-  #   command:
-  #     - /bin/sh
-  #     - -c
-  #     - |
-  #       apk update && apk add socat
-  #       # Elasticsearch, 9300 is for cluster discovery
-  #       socat TCP-LISTEN:9200,fork TCP:elasticsearch:9200
-  #       # Kibana
-  #       socat TCP-LISTEN:443,fork, TCP:kibana:${KIBANA_PORT} 
-  #       # APM Server
-  #       socat TCP-LISTEN:8200,fork TCP:apm-server:8200
-  #       # socat OPENSSL-LISTEN:5044,fork,cert=/certs/fullchain.pem,verify=0 TCP:elasticsearch:5044 # Logstash
-  #       # socat OPENSSL-LISTEN:9600,fork,cert=/certs/fullchain.pem,verify=0 TCP:elasticsearch:9600 # Logstash
-  #   ports:
-  #     - target: 9200
-  #       published: 9200
-  #     - target: 443
-  #       published: 443
-  #     - target: 8200
-  #       published: 8200
-  #   deploy:
-  #     mode: replicated
-  #     replicas: 1
-  #   environment:
-  #     KIBANA_PORT: ${KIBANA_PORT}
-  #   secrets:
-  #     - source: proxy.certificate
-  #       target: /certs/fullchain.pem
-  #     - source: proxy.key
-  #       target: /certs/privkey.pem
-
   elasticsearch:
     image: elastdocker/elasticsearch:${ELK_VERSION}
     build:
@@ -102,13 +69,6 @@ services:
         target: /usr/share/elasticsearch/config/certs/elasticsearch.crt
       - source: elasticsearch.key
         target: /usr/share/elasticsearch/config/certs/elasticsearch.key
-    ports:
-      - target: ${ELASTICSEARCH_PORT}
-        published: ${ELASTICSEARCH_PORT}
-      - target: 9300
-        published: 9300
-      # - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
-      # - "9300:9300"
     ulimits:
       memlock:
         soft: -1
@@ -147,13 +107,6 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTICSEARCH_HOST_PORT: https://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}
       LS_JAVA_OPTS: "-Xmx${LOGSTASH_HEAP} -Xms${LOGSTASH_HEAP} -Dlog4j2.formatMsgNoLookups=true"
-      # ports:
-      #   - target: 5044
-      #     published: 5044
-      #   - target: 9600
-      #     published: 9600
-      # - "5044:5044"
-      # - "9600:9600"
     healthcheck:
       test:
         [
@@ -204,10 +157,6 @@ services:
       args:
         ELK_VERSION: $ELK_VERSION
     restart: unless-stopped
-    ports:
-      - target: 8200
-        published: 8200
-      # - "8200:8200"
     volumes:
       - ./apm-server/config/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
     environment:
