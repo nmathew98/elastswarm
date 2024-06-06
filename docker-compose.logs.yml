@@ -1,8 +1,7 @@
-version: '3.5'
-
 # will contain all elasticsearch data.
 volumes:
   filebeat-data:
+
 
 services:
   # Docker Logs Shipper ------------------------------
@@ -22,3 +21,12 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - filebeat-data:/var/lib/filebeat/data
+    networks:
+      - elastic
+    deploy:
+      mode: replicated
+      replicas: 1
+
+networks:
+  elastic:
+    external: true
