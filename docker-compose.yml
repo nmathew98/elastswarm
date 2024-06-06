@@ -30,9 +30,9 @@ secrets:
   apm-server.key:
     file: ./secrets/certs/apm-server/apm-server.key
   proxy.certificate:
-    file: ./keys/fullchain.pem
+    file: ${PROXY_CERT_PATH}
   proxy.key:
-    file: ./keys/privkey.pem
+    file: ${PROXY_KEY_PATH}
 
 services:
   elasticsearch:
