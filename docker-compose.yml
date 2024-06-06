@@ -1,14 +1,14 @@
-version: '3.5'
-
 # To Join any other app setup using another network, change name and set external = true
 networks:
   default:
     name: elastic
-    external: false
+    driver: overlay
+    attachable: true
 
 # will contain all elasticsearch data.
 volumes:
   elasticsearch-data:
+
 
 secrets:
   elasticsearch.keystore:
@@ -29,8 +29,45 @@ secrets:
     file: ./secrets/certs/apm-server/apm-server.crt
   apm-server.key:
     file: ./secrets/certs/apm-server/apm-server.key
+  proxy.certificate:
+    file: ./keys/fullchain.pem
+  proxy.key:
+    file: ./keys/privkey.pem
 
 services:
+  # proxy:
+  #   image: alpine
+  #   command:
+  #     - /bin/sh
+  #     - -c
+  #     - |
+  #       apk update && apk add socat
+  #       # Elasticsearch, 9300 is for cluster discovery
+  #       socat TCP-LISTEN:9200,fork TCP:elasticsearch:9200
+  #       # Kibana
+  #       socat TCP-LISTEN:443,fork, TCP:kibana:${KIBANA_PORT} 
+  #       # APM Server
+  #       socat TCP-LISTEN:8200,fork TCP:apm-server:8200
+  #       # socat OPENSSL-LISTEN:5044,fork,cert=/certs/fullchain.pem,verify=0 TCP:elasticsearch:5044 # Logstash
+  #       # socat OPENSSL-LISTEN:9600,fork,cert=/certs/fullchain.pem,verify=0 TCP:elasticsearch:9600 # Logstash
+  #   ports:
+  #     - target: 9200
+  #       published: 9200
+  #     - target: 443
+  #       published: 443
+  #     - target: 8200
+  #       published: 8200
+  #   deploy:
+  #     mode: replicated
+  #     replicas: 1
+  #   environment:
+  #     KIBANA_PORT: ${KIBANA_PORT}
+  #   secrets:
+  #     - source: proxy.certificate
+  #       target: /certs/fullchain.pem
+  #     - source: proxy.key
+  #       target: /certs/privkey.pem
+
   elasticsearch:
     image: elastdocker/elasticsearch:${ELK_VERSION}
     build:
@@ -39,12 +76,14 @@ services:
         ELK_VERSION: ${ELK_VERSION}
     restart: unless-stopped
     environment:
+      network.publish_host: _eth0_
+      node.name: elastic_elasticsearch.{{.Task.Slot}}
+      path.data: ./elasticsearch.{{.Task.Slot}}
+      discovery.seed_hosts: tasks.elasticsearch
+      cluster.initial_master_nodes: elastic_elasticsearch.1,elastic_elasticsearch.2,elastic_elasticsearch.3
       ELASTIC_USERNAME: ${ELASTIC_USERNAME}
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTIC_CLUSTER_NAME: ${ELASTIC_CLUSTER_NAME}
-      ELASTIC_NODE_NAME: ${ELASTIC_NODE_NAME}
-      ELASTIC_INIT_MASTER_NODE: ${ELASTIC_INIT_MASTER_NODE}
-      ELASTIC_DISCOVERY_SEEDS: ${ELASTIC_DISCOVERY_SEEDS}
       ELASTICSEARCH_PORT: ${ELASTICSEARCH_PORT}
       ES_JAVA_OPTS: "-Xmx${ELASTICSEARCH_HEAP} -Xms${ELASTICSEARCH_HEAP} -Des.enforce.bootstrap.checks=true -Dlog4j2.formatMsgNoLookups=true"
       bootstrap.memory_lock: "true"
@@ -64,8 +103,12 @@ services:
       - source: elasticsearch.key
         target: /usr/share/elasticsearch/config/certs/elasticsearch.key
     ports:
-      - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
-      - "9300:9300"
+      - target: ${ELASTICSEARCH_PORT}
+        published: ${ELASTICSEARCH_PORT}
+      - target: 9300
+        published: 9300
+      # - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
+      # - "9300:9300"
     ulimits:
       memlock:
         soft: -1
@@ -74,7 +117,16 @@ services:
         soft: 200000
         hard: 200000
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -sf --insecure https://$ELASTIC_USERNAME:$ELASTIC_PASSWORD@localhost:$ELASTICSEARCH_PORT/_cat/health | grep -ioE 'green|yellow' || echo 'not green/yellow cluster status'"]
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "curl -sf --insecure https://$ELASTIC_USERNAME:$ELASTIC_PASSWORD@localhost:$ELASTICSEARCH_PORT/_cat/health | grep -ioE 'green|yellow' || echo 'not green/yellow cluster status'"
+        ]
+    deploy:
+      mode: replicated
+      replicas: 3
 
   logstash:
     image: elastdocker/logstash:${ELK_VERSION}
@@ -95,11 +147,25 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTICSEARCH_HOST_PORT: https://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}
       LS_JAVA_OPTS: "-Xmx${LOGSTASH_HEAP} -Xms${LOGSTASH_HEAP} -Dlog4j2.formatMsgNoLookups=true"
-    ports:
-      - "5044:5044"
-      - "9600:9600"
+      # ports:
+      #   - target: 5044
+      #     published: 5044
+      #   - target: 9600
+      #     published: 9600
+      # - "5044:5044"
+      # - "9600:9600"
     healthcheck:
-      test: ["CMD", "curl", "-s" ,"-XGET", "http://127.0.0.1:9600"]
+      test:
+        [
+          "CMD",
+          "curl",
+          "-s",
+          "-XGET",
+          "http://127.0.0.1:9600"
+        ]
+    deploy:
+      mode: replicated
+      replicas: 1
 
   kibana:
     image: elastdocker/kibana:${ELK_VERSION}
@@ -115,6 +181,9 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTICSEARCH_HOST_PORT: https://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}
       KIBANA_PORT: ${KIBANA_PORT}
+    ports:
+      - target: ${KIBANA_PORT}
+        published: ${KIBANA_PORT}
     env_file:
       - ./secrets/.env.kibana.token
     secrets:
@@ -124,8 +193,9 @@ services:
         target: /certs/kibana.crt
       - source: kibana.key
         target: /certs/kibana.key
-    ports:
-      - "${KIBANA_PORT}:${KIBANA_PORT}"
+    deploy:
+      mode: replicated
+      replicas: 1
 
   apm-server:
     image: elastdocker/apm-server:${ELK_VERSION}
@@ -135,7 +205,9 @@ services:
         ELK_VERSION: $ELK_VERSION
     restart: unless-stopped
     ports:
-      - "8200:8200"
+      - target: 8200
+        published: 8200
+      # - "8200:8200"
     volumes:
       - ./apm-server/config/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
     environment:
@@ -150,3 +222,6 @@ services:
         target: /certs/apm-server.crt
       - source: apm-server.key
         target: /certs/apm-server.key
+    deploy:
+      mode: replicated
+      replicas: 1

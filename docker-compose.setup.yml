@@ -1,5 +1,3 @@
-version: '3.5'
-
 services:
   keystore:
     image: elastdocker/elasticsearch:${ELK_VERSION}
@@ -10,8 +8,8 @@ services:
     command: bash /setup/setup-keystore.sh
     user: "0"
     volumes:
-        - ./secrets:/secrets
-        - ./setup/:/setup/
+      - ./secrets:/secrets
+      - ./setup/:/setup/
     environment:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
 
