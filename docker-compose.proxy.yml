@@ -1,8 +1,8 @@
 secrets:
   proxy.certificate:
-    file: ./keys/fullchain.pem
+    file: ${PROXY_CERT_PATH}
   proxy.key:
-    file: ./keys/privkey.pem
+    file: ${PROXY_KEY_PATH}
 
 services:
   proxy:

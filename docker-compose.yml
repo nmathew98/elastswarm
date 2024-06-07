@@ -134,9 +134,7 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       ELASTICSEARCH_HOST_PORT: https://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}
       KIBANA_PORT: ${KIBANA_PORT}
-    ports:
-      - target: ${KIBANA_PORT}
-        published: ${KIBANA_PORT}
+      KIBANA_PUBLIC_BASE_URL: ${KIBANA_PUBLIC_BASE_URL}
     env_file:
       - ./secrets/.env.kibana.token
     secrets:
