@@ -16,6 +16,7 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       KIBANA_HOST_PORT: ${KIBANA_HOST}:${KIBANA_PORT}
       ELASTICSEARCH_HOST_PORT: https://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}
+      path.data: /var/lib/filebeat/data/filebeat.{{.Task.Slot}}
     volumes:
       - ./filebeat/filebeat.docker.logs.yml:/usr/share/filebeat/filebeat.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
